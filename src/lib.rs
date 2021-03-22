@@ -245,13 +245,18 @@ impl<'repo> Version<'repo> {
   }
   pub fn derive<F>(&self, f: F) -> Result<Version<'repo>, Error>
   where
-    F: for<'tx> FnOnce(&'tx mut Transaction<'repo>) -> Result<CommitMetadata<'static>, Error>,
+    F: for<'tx> FnOnce(&'tx mut Transaction<'repo>) -> Result<CommitMessage, Error>,
   {
     let mut tx = Transaction {
       store: self.store,
       index: index_from_commit(self.commit.as_ref())?,
     };
-    let commit_metadata = f(&mut tx)?;
+    let commit_message = f(&mut tx)?;
+    let signature = self
+      .store
+      .repo
+      .signature()
+      .map_err(Error::git("create signature"))?;
     let tree_id = tx
       .index
       .write_tree_to(&self.store.repo)
@@ -273,9 +278,9 @@ impl<'repo> Version<'repo> {
               .repo
               .commit(
                 None,
-                &commit_metadata.author.signature()?,
-                &commit_metadata.committer.signature()?,
-                commit_metadata.message.as_ref(),
+                &signature,
+                &signature,
+                commit_message.as_ref(),
                 &tree,
                 &self.commit.iter().collect::<Vec<_>>(),
               )
@@ -361,24 +366,7 @@ fn current_index_time() -> git2::IndexTime {
   git2::IndexTime::new(t.as_secs() as i32, t.subsec_nanos() as u32)
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CommitMetadata<'a> {
-  pub message: Cow<'a, str>,
-  pub author: Author<'a>,
-  pub committer: Author<'a>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Author<'a> {
-  pub name: Cow<'a, str>,
-  pub email: Cow<'a, str>,
-}
-impl<'a> Author<'a> {
-  fn signature(&self) -> Result<git2::Signature<'static>, Error> {
-    git2::Signature::now(self.name.as_ref(), self.email.as_ref())
-      .map_err(Error::git("create signature"))
-  }
-}
+pub type CommitMessage = String;
 
 #[derive(Debug)]
 pub enum Error {
