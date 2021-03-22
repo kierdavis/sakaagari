@@ -1,0 +1,10 @@
+[package]
+name = "sakaagari"
+version = "0.1.0"
+authors = ["Kier Davis <me@kierdavis.com>"]
+edition = "2018"
+
+[dependencies]
+git2 = "0.13.12"
+serde = "1.0.117"
+toml = "0.5.7"
